@@ -44,24 +44,24 @@ def read_excel_customers():
     """Read all customers from Excel 客户列表 sheet"""
     if not os.path.exists(EXCEL_PATH):
         return []
-    
+
     wb = openpyxl.load_workbook(EXCEL_PATH)
     ws = wb['客户列表']
-    
+
     customers = []
     for row in ws.iter_rows(min_row=HEADER_ROW, max_col=13):
         # row is 0-indexed tuple
         cid = row[0].value
         if not cid or str(cid).strip() in ['', 'ID', '合计']:
             continue
-        
+
         name = str(row[1].value or '')
         biz_raw = str(row[2].value or '')
         # biz can be comma-separated or single
         biz = [b.strip() for b in biz_raw.replace('，', ',').split(',') if b.strip()]
         if not biz:
             biz = ['调研']
-        
+
         proj = str(row[3].value or '')
         amount = str(row[4].value or '')
         currency = str(row[5].value or 'CNY')
@@ -71,15 +71,19 @@ def read_excel_customers():
         next_date = str(row[9].value or '')
         note = str(row[10].value or '')
         referrer = str(row[11].value or '')
-        
-        # Parse next_date: if it looks like a datetime, extract date part
-        if next_date and next_date != 'None':
-            try:
-                dt = datetime.strptime(next_date[:10], '%Y-%m-%d')
-                next_date = dt.strftime('%Y-%m-%d')
-            except:
-                pass
-        
+
+        # Parse next_date / entry: if it looks like a datetime, extract date part
+        for field_name, field_val in (('next_date', next_date), ('entry', entry)):
+            if field_val and field_val != 'None':
+                try:
+                    dt = datetime.strptime(field_val[:10], '%Y-%m-%d')
+                    if field_name == 'next_date':
+                        next_date = dt.strftime('%Y-%m-%d')
+                    else:
+                        entry = dt.strftime('%Y-%m-%d')
+                except:
+                    pass
+
         customers.append({
             'id': str(cid),
             'name': name,
@@ -95,42 +99,60 @@ def read_excel_customers():
             'referrer': referrer,
             'isNew': False,
         })
-    
+
     wb.close()
     return customers
 
 
-def write_excel_customers(customers):
-    """Write customers back to Excel 客户列表 sheet, preserving all formatting"""
+def write_excel_customers(customers, deleted_ids=None):
+    """Write customers back to Excel 客户列表 sheet, preserving all formatting.
+
+    deleted_ids: IDs explicitly deleted on the kanban — remove those rows so
+    deleted customers do not reappear on the next "从 Excel 加载".
+    """
     wb = openpyxl.load_workbook(EXCEL_PATH)
     ws = wb['客户列表']
-    
+
+    # 1) Delete tombstoned rows first (bottom-up so indices stay valid)
+    deleted_ids = set(deleted_ids or [])
+    if deleted_ids:
+        rows_to_delete = []
+        for row_idx in range(HEADER_ROW, ws.max_row + 1):
+            cid = ws.cell(row=row_idx, column=1).value
+            if cid and str(cid) in deleted_ids:
+                rows_to_delete.append(row_idx)
+        for row_idx in reversed(rows_to_delete):
+            ws.delete_rows(row_idx)
+
     # Build a map of id -> customer for quick lookup
     cust_map = {}
     for c in customers:
         cust_map[c['id']] = c
-    
-    # Scan existing rows, update matching IDs
+
+    # 2) Scan existing rows, update matching IDs
     existing_ids = set()
     data_start_row = HEADER_ROW  # Row 4
     last_data_row = data_start_row
-    
+
     for row_idx in range(data_start_row, ws.max_row + 1):
         cid = ws.cell(row=row_idx, column=1).value
         if not cid or str(cid).strip() in ['', 'ID', '合计']:
             continue
-        
+
         cid_str = str(cid)
         existing_ids.add(cid_str)
         last_data_row = row_idx
-        
+
         if cid_str in cust_map:
             c = cust_map[cid_str]
             ws.cell(row=row_idx, column=COL_MAP['name']).value = c['name']
             ws.cell(row=row_idx, column=COL_MAP['biz']).value = ', '.join(c.get('biz', ['调研']))
             ws.cell(row=row_idx, column=COL_MAP['proj']).value = c.get('proj', '')
+            ws.cell(row=row_idx, column=COL_MAP['amount']).value = c.get('amount', '')
+            ws.cell(row=row_idx, column=COL_MAP['currency']).value = c.get('currency', 'CNY')
             ws.cell(row=row_idx, column=COL_MAP['stage']).value = c.get('stage', '')
             ws.cell(row=row_idx, column=COL_MAP['owner']).value = c.get('owner', '')
+            ws.cell(row=row_idx, column=COL_MAP['entry']).value = c.get('entry', '')
             next_val = c.get('next', '')
             if next_val:
                 ws.cell(row=row_idx, column=COL_MAP['next']).value = next_val
@@ -138,9 +160,9 @@ def write_excel_customers(customers):
                 ws.cell(row=row_idx, column=COL_MAP['next']).value = ''
             ws.cell(row=row_idx, column=COL_MAP['note']).value = c.get('note', '')
             ws.cell(row=row_idx, column=COL_MAP['referrer']).value = c.get('referrer', '')
-    
-    # Add new customers that don't exist in Excel
-    new_customers = [c for c in customers if c['id'] not in existing_ids]
+
+    # Add new customers that don't exist in Excel (never re-add tombstoned IDs)
+    new_customers = [c for c in customers if c['id'] not in existing_ids and c['id'] not in deleted_ids]
     if new_customers:
         insert_row = last_data_row + 1
         for c in new_customers:
@@ -158,7 +180,7 @@ def write_excel_customers(customers):
             ws.cell(row=insert_row, column=COL_MAP['note']).value = c.get('note', '')
             ws.cell(row=insert_row, column=COL_MAP['referrer']).value = c.get('referrer', '')
             insert_row += 1
-    
+
     wb.save(EXCEL_PATH)
     wb.close()
     return True
@@ -178,8 +200,12 @@ def sync_customers():
     try:
         data = request.get_json()
         customers = data.get('customers', [])
-        write_excel_customers(customers)
-        return jsonify({'success': True, 'message': f'已同步 {len(customers)} 条客户数据到 Excel'})
+        deleted_ids = data.get('deletedIds', [])
+        write_excel_customers(customers, deleted_ids)
+        msg = f'已同步 {len(customers)} 条客户数据到 Excel'
+        if deleted_ids:
+            msg += f'，删除 {len(deleted_ids)} 条'
+        return jsonify({'success': True, 'message': msg})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
