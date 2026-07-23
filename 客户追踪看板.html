@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>客户追踪看板 · 青蓝图</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f4f6f9;
+    color: #1a2332;
+    line-height: 1.5;
+    padding: 20px;
+    font-size: 13px;
+  }
+  .container { max-width: 1400px; margin: 0 auto; }
+
+  .header {
+    background: linear-gradient(135deg, #1e3a5f, #2c5282);
+    color: white;
+    border-radius: 12px;
+    padding: 22px 28px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  }
+  .header h1 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+  .header .sub { font-size: 12px; opacity: 0.8; }
+  .header .right-tools { float: right; display: flex; gap: 8px; }
+  .btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: none;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-primary { background: white; color: #1e3a5f; }
+  .btn-primary:hover { background: #F1F5F9; }
+  .btn-secondary { background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.3); }
+  .btn-secondary:hover { background: rgba(255,255,255,0.25); }
+  .btn-danger { background: #DC2626; color: white; }
+  .btn-danger:hover { background: #B91C1C; }
+  .btn-grey { background: #E5E7EB; color: #1F2937; }
+  .btn-grey:hover { background: #D1D5DB; }
+
+  .kpis {
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 14px;
+    margin-top: 18px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(255,255,255,0.2);
+    clear: both;
+  }
+  .kpis .label { font-size: 10px; opacity: 0.75; text-transform: uppercase; letter-spacing: 0.5px; }
+  .kpis .val { font-size: 24px; font-weight: 600; margin-top: 4px; }
+  .kpis .sub2 { font-size: 10px; opacity: 0.6; margin-top: 2px; }
+  .kpis .val.调研 { color: #93C5FD; }
+  .kpis .val.众筹 { color: #D8B4FE; }
+  .kpis .val.独立站 { color: #6EE7B7; }
+  .kpis .val.ID { color: #67E8F9; }
+  .kpis .val.VI { color: #F9A8D4; }
+
+  /* Filter bar */
+  .filterbar {
+    background: white;
+    padding: 12px 18px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    margin-bottom: 16px;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filter-group { display: flex; align-items: center; gap: 6px; }
+  .filter-group .label { font-size: 11px; color: #6b7280; font-weight: 600; }
+  .pill {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 14px;
+    font-size: 11px;
+    border: 1px solid #e5e7eb;
+    background: white;
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .pill:hover { border-color: #9ca3af; }
+  .pill.active { background: #1f2937; color: white; border-color: #1f2937; }
+  .pill.biz-调研 { color: #1E40AF; border-color: #BFDBFE; }
+  .pill.biz-调研.active { background: #1E40AF; color: white; border-color: #1E40AF; }
+  .pill.biz-众筹 { color: #7E22CE; border-color: #E9D5FF; }
+  .pill.biz-众筹.active { background: #7E22CE; color: white; border-color: #7E22CE; }
+  .pill.biz-独立站 { color: #065F46; border-color: #A7F3D0; }
+  .pill.biz-独立站.active { background: #065F46; color: white; border-color: #065F46; }
+  .pill.biz-ID { color: #155E75; border-color: #67E8F9; }
+  .pill.biz-ID.active { background: #0E7490; color: white; border-color: #0E7490; }
+  .pill.biz-VI { color: #BE185D; border-color: #F9A8D4; }
+  .pill.biz-VI.active { background: #BE185D; color: white; border-color: #BE185D; }
+  .pill.biz-附带 { color: #9A3412; border-color: #FED7AA; }
+  .pill.biz-附带.active { background: #9A3412; color: white; border-color: #9A3412; }
+
+  /* Edit indicator */
+  .edit-indicator {
+    background: #FEF3C7;
+    color: #92400E;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    margin-left: auto;
+    display: none;
+  }
+  .edit-indicator.show { display: flex; align-items: center; gap: 6px; }
+
+  /* Kanban — 6 columns (L1-L4 + C + L8) */
+  .kanban { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
+  .col {
+    background: white;
+    border-radius: 12px;
+    padding: 14px;
+    min-height: 200px;
+  }
+  .col-header {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .col-stage-1 { background: #F3F4F6; color: #374151; }
+  .col-stage-2 { background: #DBEAFE; color: #1E40AF; }
+  .col-stage-3 { background: #FEF3C7; color: #92400E; }
+  .col-stage-4 { background: #FED7AA; color: #9A3412; }
+  .col-stage-5 { background: #D1FAE5; color: #065F46; }
+  .col-stage-8 { background: #FEE2E2; color: #DC2626; }
+  .col-count { font-size: 10px; opacity: 0.75; margin-top: 3px; font-weight: 400; }
+
+  /* Cards */
+  .card {
+    background: white;
+    border-left: 4px solid #9CA3AF;
+    padding: 10px 12px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    transition: transform 0.1s, box-shadow 0.1s;
+    cursor: pointer;
+    position: relative;
+  }
+  .card:hover { transform: translateY(-1px); box-shadow: 0 3px 12px rgba(0,0,0,0.12); }
+  .card:hover .edit-hint { opacity: 1; }
+  .card .edit-hint {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-size: 10px;
+    color: #9CA3AF;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .card.biz-调研 { border-left-color: #3b82f6; background: #EFF6FF; }
+  .card.biz-众筹 { border-left-color: #a855f7; background: #FAF5FF; }
+  .card.biz-独立站 { border-left-color: #10b981; background: #F0FDF4; }
+  .card.biz-ID { border-left-color: #06B6D4; background: #ECFEFF; }
+  .card.biz-VI { border-left-color: #EC4899; background: #FDF2F8; }
+  .card.biz-附带 { border-left-color: #f97316; background: #FFF7ED; }
+  .card.biz-multi { border-left-color: transparent; background: #FAFAFA;
+    border-image: linear-gradient(to bottom, #3b82f6, #a855f7, #10b981) 1;
+    border-left: 4px solid;
+    border-image-slice: 1;
+  }
+  .tags-row { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 4px; }
+
+  /* Checkbox group */
+  .checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 6px 0;
+  }
+  .checkbox-group label {
+    display: inline-flex !important;
+    align-items: center;
+    padding: 4px 10px;
+    border: 1px solid #D1D5DB;
+    border-radius: 16px;
+    font-size: 12px !important;
+    cursor: pointer;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    color: #374151 !important;
+    margin: 0 !important;
+    font-weight: 500 !important;
+  }
+  .checkbox-group label:has(input:checked) {
+    background: #1F2937;
+    color: white !important;
+    border-color: #1F2937;
+  }
+  .checkbox-group input { margin-right: 4px; }
+  .card .name { font-weight: 600; font-size: 13px; margin-bottom: 4px; color: #111827; }
+  .card .proj { font-size: 11px; color: #4B5563; margin-bottom: 6px; line-height: 1.4; }
+  .card .meta { font-size: 10px; color: #6b7280; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 4px; }
+  .card .created { font-size: 10px; color: #9CA3AF; }
+  .card .stage-change { font-size: 9px; color: #6B7280; margin-top: 4px; font-style: italic; }
+  .card .owner { font-weight: 600; color: #374151; }
+  .card .next {
+    color: #d97706;
+    background: rgba(217, 119, 6, 0.1);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+  .card .referrer {
+    font-size: 10px;
+    color: #4338CA;
+    margin-top: 4px;
+    padding: 3px 6px;
+    background: rgba(99, 102, 241, 0.08);
+    border-radius: 4px;
+    display: inline-block;
+  }
+  .card .note {
+    font-size: 10px;
+    color: #6b7280;
+    margin-top: 6px;
+    line-height: 1.4;
+    padding-top: 6px;
+    border-top: 1px dashed #E5E7EB;
+  }
+  .card .badge-new {
+    display: inline-block;
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-weight: 600;
+    margin-left: 4px;
+    background: #DCFCE7;
+    color: #15803D;
+  }
+  .card .badge-goal {
+    display: inline-block;
+    font-size: 12px;
+    padding: 0 2px;
+    margin-left: 2px;
+    cursor: help;
+  }
+  .biz-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: 600;
+    margin-left: 4px;
+  }
+  .biz-tag.biz-调研 { background: #DBEAFE; color: #1E40AF; }
+  .biz-tag.biz-众筹 { background: #F3E8FF; color: #7E22CE; }
+  .biz-tag.biz-独立站 { background: #D1FAE5; color: #065F46; }
+  .biz-tag.biz-ID { background: #CFFAFE; color: #155E75; }
+  .biz-tag.biz-VI { background: #FCE7F3; color: #BE185D; }
+  .biz-tag.biz-附带 { background: #FED7AA; color: #9A3412; }
+
+  /* Add card button */
+  .add-card {
+    background: rgba(255,255,255,0.5);
+    border: 2px dashed #CBD5E1;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    text-align: center;
+    color: #94A3B8;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .add-card:hover { background: white; border-color: #64748B; color: #475569; }
+
+  .empty {
+    text-align: center;
+    color: #9CA3AF;
+    font-size: 11px;
+    padding: 20px 0;
+    font-style: italic;
+  }
+
+  /* Bottom panel */
+  .panel {
+    background: white;
+    border-radius: 12px;
+    padding: 18px 22px;
+    margin-top: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  }
+  .panel h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+  .panel h3::before { content: ""; width: 3px; height: 14px; background: #2c5282; border-radius: 2px; }
+
+  /* Modal */
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-backdrop.show { display: flex; }
+  .modal {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    width: 500px;
+    max-width: 92%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  }
+  .modal h2 { font-size: 18px; font-weight: 600; margin-bottom: 18px; color: #111827; }
+  .form-row { margin-bottom: 14px; }
+  .form-row label { display: block; font-size: 11px; color: #6B7280; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .form-row input, .form-row select, .form-row textarea {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #D1D5DB;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .form-row input:focus, .form-row select:focus, .form-row textarea:focus {
+    outline: none;
+    border-color: #2563EB;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+  .form-row textarea { resize: vertical; min-height: 60px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 20px; justify-content: flex-end; }
+  .modal-actions .left { margin-right: auto; }
+
+  /* Export modal */
+  .export-area {
+    width: 100%;
+    height: 400px;
+    padding: 12px;
+    border: 1px solid #D1D5DB;
+    border-radius: 6px;
+    font-family: 'Monaco', monospace;
+    font-size: 11px;
+    margin-top: 8px;
+  }
+
+  @media (max-width: 1200px) {
+    .kanban { grid-template-columns: repeat(3, 1fr); }
+    .kpis { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 760px) {
+    .kanban { grid-template-columns: repeat(2, 1fr); }
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="right-tools" style="margin-bottom: 8px;">
+      <button class="btn btn-primary" onclick="loadFromExcel()" id="btn-load">📥 从 Excel 加载</button>
+      <button class="btn btn-primary" onclick="syncToExcel()" id="btn-sync">📤 同步到 Excel</button>
+      <button class="btn btn-secondary" onclick="exportData()">📋 导出文本</button>
+      <button class="btn btn-secondary" onclick="resetData()">↻ 重置</button>
+    </div>
+    <h1>客户追踪看板 · 青蓝图</h1>
+    <div class="sub">仅展示跟进中及流失客户 (L1-L4 + C + L8) · 点卡片可编辑 · 改动自动保存本地 + 可同步到 Excel</div>
+    <div id="sync-status" style="display:none; margin-top:8px; padding:6px 12px; border-radius:6px; font-size:11px;"></div>
+    <div class="kpis">
+      <div>
+        <div class="label">在跟进</div>
+        <div class="val" id="kpi-total">—</div>
+        <div class="sub2">L1-L4+C+L8 合计</div>
+      </div>
+      <div>
+        <div class="label">调研</div>
+        <div class="val 调研" id="kpi-调研">—</div>
+      </div>
+      <div>
+        <div class="label">众筹</div>
+        <div class="val 众筹" id="kpi-众筹">—</div>
+      </div>
+      <div>
+        <div class="label">独立站</div>
+        <div class="val 独立站" id="kpi-独立站">—</div>
+      </div>
+      <div>
+        <div class="label">ID</div>
+        <div class="val ID" id="kpi-ID">—</div>
+        <div class="sub2">工业设计</div>
+      </div>
+      <div>
+        <div class="label">VI</div>
+        <div class="val VI" id="kpi-VI">—</div>
+        <div class="sub2">视觉品牌</div>
+      </div>
+      <div>
+        <div class="label">合作中</div>
+        <div class="val" style="color:#10B981;" id="kpi-C">—</div>
+        <div class="sub2">Collaboration</div>
+      </div>
+      <div>
+        <div class="label">本周新进</div>
+        <div class="val" style="color:#FBBF24;" id="kpi-new">—</div>
+      </div>
+      <div>
+        <div class="label">流失</div>
+        <div class="val" style="color:#DC2626;" id="kpi-lost">—</div>
+        <div class="sub2">L8 已流失</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="filterbar">
+    <div class="filter-group">
+      <span class="label">业务线</span>
+      <span class="pill active" data-biz="all">全部</span>
+      <span class="pill biz-调研" data-biz="调研">调研</span>
+      <span class="pill biz-众筹" data-biz="众筹">众筹</span>
+      <span class="pill biz-独立站" data-biz="独立站">独立站</span>
+      <span class="pill biz-ID" data-biz="ID">ID</span>
+      <span class="pill biz-VI" data-biz="VI">VI</span>
+      <span class="pill biz-附带" data-biz="附带">附带</span>
+    </div>
+    <div class="filter-group">
+      <span class="label">负责人</span>
+      <span class="pill active" data-owner="all">全部</span>
+      <span class="pill" data-owner="李怡欣">李怡欣</span>
+      <span class="pill" data-owner="宋鸿儒">宋鸿儒</span>
+      <span class="pill" data-owner="王洋漾">王洋漾</span>
+      <span class="pill" data-owner="陈文">陈文</span>
+      <span class="pill" data-owner="林帅">林帅</span>
+      <span class="pill" data-owner="邹霖">邹霖</span>
+    </div>
+    <div class="edit-indicator" id="edit-indicator">
+      <span>📝</span> 本地已编辑 · 点"导出数据"获取最新版
+    </div>
+  </div>
+
+  <!-- Kanban -->
+  <div class="kanban" id="kanban"></div>
+
+  <!-- Action insights -->
+  <div class="panel">
+    <h3>💡 使用提示</h3>
+    <div style="font-size: 12px; line-height: 1.8; color: #374151;">
+      <p><strong>点击任意卡片</strong> → 编辑客户信息（业务线、阶段、负责人、备注、下次跟进等都可改）</p>
+      <p><strong>每列底部 "+ 添加" 按钮</strong> → 新增客户直接进入该阶段</p>
+      <p><strong>顶部 "导出数据"</strong> → 把当前所有改动导出，发给 Claude 同步到 Excel 主表</p>
+      <p><strong>顶部 "重置"</strong> → 回到默认数据（清空所有本地修改）</p>
+      <p style="margin-top: 8px; color: #6b7280;">所有改动自动保存在浏览器本地，刷新页面不会丢失。</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal">
+    <h2 id="modal-title">编辑客户</h2>
+    <input type="hidden" id="edit-id">
+    <div class="form-row">
+      <label>客户名 *</label>
+      <input type="text" id="edit-name" placeholder="例如: BioEcho">
+    </div>
+    <div class="form-row">
+      <label>业务线 * (可多选)</label>
+      <div class="checkbox-group" id="edit-biz-group">
+        <label><input type="checkbox" value="调研"> 调研</label>
+        <label><input type="checkbox" value="众筹"> 众筹</label>
+        <label><input type="checkbox" value="独立站"> 独立站</label>
+        <label><input type="checkbox" value="ID"> ID</label>
+        <label><input type="checkbox" value="VI"> VI</label>
+        <label><input type="checkbox" value="附带"> 附带</label>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>阶段 *</label>
+      <select id="edit-stage">
+        <option value="L1 线索">L1 线索</option>
+        <option value="L2 接触中">L2 接触中</option>
+        <option value="L3 报价中">L3 报价中</option>
+        <option value="L4 谈判中">L4 谈判中</option>
+        <option value="C 合作中">C 合作中 (Collaboration)</option>
+        <option value="L5 已签约">L5 已签约 (移出看板)</option>
+        <option value="L8 已流失">L8 已流失</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>项目</label>
+      <input type="text" id="edit-proj" placeholder="例如: 智能手环 (血压) 设计+调研">
+    </div>
+    <div class="form-grid">
+      <div class="form-row">
+        <label>负责人</label>
+        <select id="edit-owner">
+          <option value="李怡欣">李怡欣</option>
+          <option value="宋鸿儒">宋鸿儒</option>
+          <option value="王洋漾">王洋漾</option>
+          <option value="陈文">陈文</option>
+          <option value="林帅">林帅</option>
+          <option value="邹霖">邹霖</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>下次跟进</label>
+        <input type="date" id="edit-next">
+      </div>
+    </div>
+    <div class="form-row">
+      <label>介绍人 / 来源</label>
+      <input type="text" id="edit-referrer" placeholder="例如: 陈程卓 13430931187, 老客户转介, 朋友推荐, 主动 BD ...">
+    </div>
+    <div class="form-row">
+      <label>备注</label>
+      <textarea id="edit-note" placeholder="一句话状态说明"></textarea>
+    </div>
+    <div class="form-row">
+      <label><input type="checkbox" id="edit-isnew"> 本周新进漏斗</label>
+    </div>
+    <div class="form-row">
+      <label><input type="checkbox" id="edit-isgoal"> ⚽ 当月进球</label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger left" id="btn-delete" onclick="deleteCustomer()">删除</button>
+      <button class="btn btn-grey" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveCustomer()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal-backdrop" id="export-modal">
+  <div class="modal" style="width: 700px;">
+    <h2>导出当前数据</h2>
+    <p style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">把下方内容全选 → 复制 → 发给 Claude, 我会同步到 Excel 主表</p>
+    <textarea class="export-area" id="export-text" readonly></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-grey" onclick="document.getElementById('export-modal').classList.remove('show')">关闭</button>
+      <button class="btn btn-primary" onclick="copyExport()">📋 一键复制</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DEFAULT_CUSTOMERS = [
+  // L1-L4 阶段, 负责人统一为邹霖 (BD/关系阶段) · 签约后再分配执行负责人
+  // ---- 调研 / ID / VI ----
+  {id:'R-008', name:'Longevity', biz:['调研','ID'], proj:'智能手环 (血压) 设计+调研', stage:'L3 报价中', owner:'邹霖', next:'2026-06-30', note:'已报价, 等客户回复', isNew:true},
+  {id:'R-009', name:'多美丽机器人', biz:['VI'], proj:'品牌设计', stage:'L2 接触中', owner:'邹霖', next:'2026-07-15', note:'NDA 准备中, 陈文具体执行', referrer:'陈文 (外包合作)'},
+  {id:'R-010', name:'万格智元', biz:['调研','ID'], proj:'调研全案 (含设计)', stage:'L2 接触中', owner:'邹霖', next:'2026-07-01', note:'本周接待, 调研全案有机会', isNew:true},
+  {id:'R-011', name:'鲸跃动力', biz:['调研','ID'], proj:'家庭机器人 全案', stage:'L1 线索', owner:'邹霖', next:'2026-07-15', note:'家庭机器人公司, 待见面', isNew:true},
+  {id:'R-012', name:'汉德', biz:['调研','ID'], proj:'滑雪设备 全案', stage:'L2 接触中', owner:'邹霖', next:'2026-07-08', note:'滑雪设备公司, 待出报价', isNew:true},
+  {id:'R-014', name:'万象智维', biz:['调研','ID'], proj:'小算力产品 全案', stage:'L3 报价中', owner:'邹霖', next:'2026-07-08', note:'王蒙对接, 全案已报价', referrer:'王蒙 (客户方对接人)', isNew:true},
+  {id:'R-015', name:'BioEcho', biz:['调研','ID'], proj:'健康穿戴 全案', stage:'L1 线索', owner:'邹霖', next:'2026-06-22', note:'田新宇 (创始人), 下周待约见', isNew:true},
+  {id:'R-016', name:'Ciney bot', biz:['调研','ID'], proj:'摄影机器人 全案', stage:'L1 线索', owner:'邹霖', next:'2026-07-01', note:'待见面', isNew:true},
+  {id:'R-013', name:'百聆', biz:['调研','ID'], proj:'调研 + ID 设计', stage:'L4 谈判中', owner:'邹霖', next:'2026-06-30', note:'报价已发, 最终商务谈判中', isNew:true},
+  {id:'R-017', name:'贝塔无限', biz:['调研'], proj:'消费电子 (待定全案)', stage:'L1 线索', owner:'邹霖', next:'2026-07-01', note:'刘武龙(创始人,前华为); 待约见面了解需求', referrer:'陈程卓 (13430931187)', isNew:true},
+
+  // ---- 众筹 ----
+  // C-003 uniqmag 已签约 (L5), 移出看板 — 进入交付期
+  {id:'C-004', name:'阅星曈', biz:['众筹'], proj:'纯众筹 (USD 100w)', stage:'L2 接触中', owner:'邹霖', next:'2026-08-01', note:'拟 2027 Q1 启动'},
+  // C-006 脑利众筹 已删除 (用户决定不做)
+  {id:'C-007', name:'Uniformation', biz:['调研'], proj:'前测 ¥10w + 投放 (¥20-30w)', stage:'L2 接触中', owner:'邹霖', next:'2026-07-15', note:'3D打印; 不做全案/不做众筹发售; 前测+投放协作', isNew:true},
+
+  // ---- 独立站 ----
+  {id:'D-001', name:'本智 / Tiiny', biz:['独立站'], proj:'月费 USD 13.5K × 5月', stage:'L4 谈判中', owner:'邹霖', next:'2026-06-30', note:'独立站组样板客户, 6月底前必签'},
+  {id:'D-003', name:'灵宇宙', biz:['独立站'], proj:'独立站运营 (月费 USD 10K + 销售提成)', stage:'L4 谈判中', owner:'邹霖', next:'2026-09-01', note:'10月起算 (调研客户延伸)'},
+  {id:'D-005', name:'uniqmag', biz:['独立站','众筹'], proj:'众筹延伸 → 独立站运营', stage:'L2 接触中', owner:'邹霖', next:'2026-06-30', note:'马总, 等后续 (uniqmag众筹延伸客户)', isNew:true},
+  // D-006 vastnaut (外骨骼) 已取消, 移出看板
+];
+
+const STAGES = ['L1 线索','L2 接触中','L3 报价中','L4 谈判中','C 合作中','L8 已流失'];
+const STORAGE_KEY = 'qingfutu_crm_v7_20260723';
+const API_BASE = '';
+
+let customers = loadCustomers();
+let filterBiz = 'all';
+let filterOwner = 'all';
+let editing = null;
+
+function loadCustomers() {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  let data;
+  if (stored) {
+    document.getElementById('edit-indicator').classList.add('show');
+    data = JSON.parse(stored);
+  } else {
+    data = JSON.parse(JSON.stringify(DEFAULT_CUSTOMERS));
+  }
+  // Backward compat: convert string biz to array
+  data.forEach(c => {
+    if (typeof c.biz === 'string') c.biz = [c.biz];
+    if (!Array.isArray(c.biz)) c.biz = ['调研'];
+  });
+  return data;
+}
+
+function saveCustomers() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(customers));
+  document.getElementById('edit-indicator').classList.add('show');
+}
+
+function resetData() {
+  if (confirm('确定要重置所有本地修改, 回到默认数据吗?')) {
+    localStorage.removeItem(STORAGE_KEY);
+    customers = JSON.parse(JSON.stringify(DEFAULT_CUSTOMERS));
+    document.getElementById('edit-indicator').classList.remove('show');
+    render();
+  }
+}
+
+function getFiltered() {
+  return customers.filter(c =>
+    STAGES.includes(c.stage) &&  // Only show L1-L4
+    (filterBiz === 'all' || (c.biz && c.biz.includes(filterBiz))) &&
+    (filterOwner === 'all' || c.owner === filterOwner)
+  );
+}
+
+function render() {
+  const filtered = getFiltered();
+
+  document.getElementById('kpi-total').textContent = filtered.length;
+  document.getElementById('kpi-调研').textContent = filtered.filter(c => c.biz && c.biz.includes('调研')).length;
+  document.getElementById('kpi-众筹').textContent = filtered.filter(c => c.biz && c.biz.includes('众筹')).length;
+  document.getElementById('kpi-独立站').textContent = filtered.filter(c => c.biz && c.biz.includes('独立站')).length;
+  document.getElementById('kpi-ID').textContent = filtered.filter(c => c.biz && c.biz.includes('ID')).length;
+  document.getElementById('kpi-VI').textContent = filtered.filter(c => c.biz && c.biz.includes('VI')).length;
+  document.getElementById('kpi-C').textContent = filtered.filter(c => c.stage === 'C 合作中').length;
+  document.getElementById('kpi-new').textContent = filtered.filter(c => c.isNew).length;
+  document.getElementById('kpi-lost').textContent = filtered.filter(c => c.stage === 'L8 已流失').length;
+
+  const kanban = document.getElementById('kanban');
+  kanban.innerHTML = '';
+  STAGES.forEach((stage, i) => {
+    let stageNum = i+1;
+    if (stage === 'L8 已流失') stageNum = 8;
+    const stageCustomers = filtered.filter(c => c.stage === stage);
+    const col = document.createElement('div');
+    col.className = 'col';
+    let html = `<div class="col-header col-stage-${stageNum}">${stage}<div class="col-count">${stageCustomers.length} 个客户</div></div>`;
+    if (stageCustomers.length === 0) {
+      html += '<div class="empty">暂无客户</div>';
+    } else {
+      stageCustomers.forEach(c => {
+        let badges = '';
+        if (c.isNew) badges += '<span class="badge-new">新</span>';
+        if (c.isGoal) badges += '<span class="badge-goal" title="当月进球 ⚽">⚽</span>';
+        const bizArr = c.biz || ['调研'];
+        const cardClass = bizArr.length > 1 ? 'biz-multi' : 'biz-' + bizArr[0];
+        const bizTags = bizArr.map(b => `<span class="biz-tag biz-${b}">${b}</span>`).join('');
+        const referrerHtml = c.referrer ? `<div class="referrer">📥 ${c.referrer}</div>` : '';
+        let stageChangeHtml = '';
+        if (c.stageHistory && c.stageHistory.length > 0) {
+          const last = c.stageHistory[c.stageHistory.length - 1];
+          stageChangeHtml = `<div class="stage-change">🔄 ${last.from}→${last.to} ${last.date}</div>`;
+        }
+        html += `
+          <div class="card ${cardClass}" onclick="openEdit('${c.id}')">
+            <div class="edit-hint">✏️</div>
+            <div class="name">${c.name}${badges}</div>
+            <div class="tags-row">${bizTags}</div>
+            <div class="proj">${c.proj || ''}</div>
+            <div class="meta">
+              <span class="owner">${c.owner}</span>
+              ${c.next ? `<span class="next">→ ${c.next}</span>` : ''}
+              ${c.createdAt ? `<span class="created">📅 ${c.createdAt}</span>` : ''}
+            </div>
+            ${referrerHtml}
+            ${c.note ? `<div class="note">${c.note}</div>` : ''}
+            ${stageChangeHtml}
+          </div>`;
+      });
+    }
+    html += `<div class="add-card" onclick="openNew('${stage}')">+ 添加到 ${stage}</div>`;
+    col.innerHTML = html;
+    kanban.appendChild(col);
+  });
+}
+
+function setBizCheckboxes(bizArray) {
+  document.querySelectorAll('#edit-biz-group input[type="checkbox"]').forEach(cb => {
+    cb.checked = bizArray && bizArray.includes(cb.value);
+  });
+}
+
+function getBizCheckboxes() {
+  return Array.from(document.querySelectorAll('#edit-biz-group input[type="checkbox"]:checked')).map(cb => cb.value);
+}
+
+function openEdit(id) {
+  const c = customers.find(x => x.id === id);
+  if (!c) return;
+  editing = id;
+  document.getElementById('modal-title').textContent = `编辑 · ${c.name}`;
+  document.getElementById('edit-id').value = c.id;
+  document.getElementById('edit-name').value = c.name;
+  setBizCheckboxes(c.biz || ['调研']);
+  document.getElementById('edit-stage').value = c.stage;
+  document.getElementById('edit-proj').value = c.proj || '';
+  document.getElementById('edit-owner').value = c.owner;
+  document.getElementById('edit-next').value = c.next || '';
+  document.getElementById('edit-referrer').value = c.referrer || '';
+  document.getElementById('edit-note').value = c.note || '';
+  document.getElementById('edit-isnew').checked = !!c.isNew;
+  document.getElementById('edit-isgoal').checked = !!c.isGoal;
+  document.getElementById('btn-delete').style.display = 'inline-block';
+  document.getElementById('modal').classList.add('show');
+}
+
+function openNew(stage) {
+  editing = null;
+  const newId = 'NEW-' + Date.now().toString().slice(-6);
+  document.getElementById('modal-title').textContent = '添加新客户';
+  document.getElementById('edit-id').value = newId;
+  document.getElementById('edit-name').value = '';
+  setBizCheckboxes(['调研']);
+  document.getElementById('edit-stage').value = stage;
+  document.getElementById('edit-proj').value = '';
+  document.getElementById('edit-owner').value = '邹霖';
+  document.getElementById('edit-next').value = '';
+  document.getElementById('edit-referrer').value = '';
+  document.getElementById('edit-note').value = '';
+  document.getElementById('edit-isnew').checked = true;
+  document.getElementById('edit-isgoal').checked = false;
+  document.getElementById('btn-delete').style.display = 'none';
+  document.getElementById('modal').classList.add('show');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('show');
+  editing = null;
+}
+
+function saveCustomer() {
+  const bizArr = getBizCheckboxes();
+  if (bizArr.length === 0) { alert('请至少选择一个业务线'); return; }
+  const updated = {
+    id: document.getElementById('edit-id').value,
+    name: document.getElementById('edit-name').value.trim(),
+    biz: bizArr,
+    proj: document.getElementById('edit-proj').value.trim(),
+    stage: document.getElementById('edit-stage').value,
+    owner: document.getElementById('edit-owner').value,
+    next: document.getElementById('edit-next').value,
+    referrer: document.getElementById('edit-referrer').value.trim(),
+    note: document.getElementById('edit-note').value.trim(),
+    isNew: document.getElementById('edit-isnew').checked,
+    isGoal: document.getElementById('edit-isgoal').checked,
+  };
+  if (!updated.name) { alert('客户名不能为空'); return; }
+
+  if (editing) {
+    const idx = customers.findIndex(x => x.id === editing);
+    if (idx >= 0) {
+      const oldStage = customers[idx].stage;
+      const newStage = updated.stage;
+      if (oldStage !== newStage) {
+        if (!customers[idx].stageHistory) customers[idx].stageHistory = [];
+        customers[idx].stageHistory.push({
+          from: oldStage,
+          to: newStage,
+          date: new Date().toISOString().slice(0, 10),
+        });
+      }
+      updated.stageHistory = customers[idx].stageHistory;
+      updated.createdAt = customers[idx].createdAt;
+      customers[idx] = updated;
+    }
+  } else {
+    updated.createdAt = new Date().toISOString().slice(0, 10);
+    customers.push(updated);
+  }
+  saveCustomers();
+  closeModal();
+  render();
+  autoSync();
+}
+
+function deleteCustomer() {
+  if (!editing) return;
+  if (!confirm('确定要删除这条客户记录吗?')) return;
+  customers = customers.filter(c => c.id !== editing);
+  saveCustomers();
+  closeModal();
+  render();
+  autoSync();
+}
+
+// 自动同步到 Excel (静默模式)
+async function autoSync() {
+  try {
+    const resp = await fetch(API_BASE + '/api/customers/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customers: customers }),
+    });
+    const data = await resp.json();
+    if (data.success) {
+      showStatus('✅ 已自动同步到 Excel', 'ok', 2000);
+    } else {
+      showStatus('⚠️ 自动同步失败: ' + data.error, 'warn', 4000);
+    }
+  } catch (err) {
+    showStatus('⚠️ 自动同步失败: ' + err.message, 'warn', 4000);
+  }
+}
+
+function exportData() {
+  const lines = ['# 客户追踪看板 · 当前数据 (' + new Date().toLocaleString('zh-CN') + ')', ''];
+  ['调研','众筹','独立站','ID','VI','附带'].forEach(biz => {
+    const items = customers.filter(c => c.biz && c.biz.includes(biz));
+    if (items.length === 0) return;
+    lines.push(`## ${biz} (含跨业务线)`);
+    items.forEach(c => {
+      const bizLabel = (c.biz || []).join('+');
+      lines.push(`- [${c.id}] ${c.name} | 业务线: ${bizLabel} | ${c.stage} | ${c.proj || ''} | ${c.owner} | 下次跟进: ${c.next || '—'} | 来源: ${c.referrer || '—'} | 备注: ${c.note || ''}${c.isNew ? ' ⭐新' : ''}`);
+    });
+    lines.push('');
+  });
+  document.getElementById('export-text').value = lines.join('\n');
+  document.getElementById('export-modal').classList.add('show');
+}
+
+function copyExport() {
+  const ta = document.getElementById('export-text');
+  ta.select();
+  document.execCommand('copy');
+  alert('已复制! 粘贴到对话框发给 Claude 即可同步');
+}
+
+// === Excel 同步功能 ===
+
+function showStatus(msg, type, duration) {
+  const el = document.getElementById('sync-status');
+  el.style.display = 'block';
+  el.textContent = msg;
+  el.style.background = type === 'ok' ? '#DCFCE7' : type === 'warn' ? '#FEF3C7' : '#FEE2E2';
+  el.style.color = type === 'ok' ? '#15803D' : type === 'warn' ? '#92400E' : '#DC2626';
+  setTimeout(() => { el.style.display = 'none'; }, duration || 5000);
+}
+
+async function loadFromExcel() {
+  const btn = document.getElementById('btn-load');
+  btn.textContent = '⏳ 加载中...';
+  btn.disabled = true;
+  try {
+    const resp = await fetch(API_BASE + '/api/customers');
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error);
+    
+    // Merge: Excel data overrides local, but keep local-only fields like isNew
+    const excelMap = {};
+    data.customers.forEach(c => { excelMap[c.id] = c; });
+    
+    const merged = [];
+    const existingIds = new Set();
+    
+    // Update existing local customers from Excel
+    customers.forEach(c => {
+      if (excelMap[c.id]) {
+        const ec = excelMap[c.id];
+        merged.push({
+          ...ec,
+          isNew: c.isNew,  // Preserve local isNew flag
+        });
+        existingIds.add(c.id);
+      } else {
+        // Local customer not in Excel — keep it
+        merged.push(c);
+      }
+    });
+    
+    // Add Excel-only customers not in local
+    data.customers.forEach(ec => {
+      if (!existingIds.has(ec.id)) {
+        merged.push(ec);
+      }
+    });
+    
+    customers = merged;
+    saveCustomers();
+    render();
+    showStatus(`✅ 已从 Excel 加载 ${data.customers.length} 条记录`, 'ok');
+  } catch (err) {
+    showStatus('❌ 加载失败: ' + err.message, 'error');
+  } finally {
+    btn.textContent = '📥 从 Excel 加载';
+    btn.disabled = false;
+  }
+}
+
+async function syncToExcel() {
+  const btn = document.getElementById('btn-sync');
+  btn.textContent = '⏳ 同步中...';
+  btn.disabled = true;
+  try {
+    const resp = await fetch(API_BASE + '/api/customers/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customers: customers }),
+    });
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.error);
+    showStatus('✅ ' + data.message, 'ok');
+  } catch (err) {
+    showStatus('❌ 同步失败: ' + err.message + '（请确认后端已启动）', 'error');
+  } finally {
+    btn.textContent = '📤 同步到 Excel';
+    btn.disabled = false;
+  }
+}
+
+// Filters
+document.querySelectorAll('.filterbar .pill[data-biz]').forEach(p => {
+  p.addEventListener('click', () => {
+    filterBiz = p.dataset.biz;
+    document.querySelectorAll('.filterbar .pill[data-biz]').forEach(x => x.classList.toggle('active', x.dataset.biz === filterBiz));
+    render();
+  });
+});
+document.querySelectorAll('.filterbar .pill[data-owner]').forEach(p => {
+  p.addEventListener('click', () => {
+    filterOwner = p.dataset.owner;
+    document.querySelectorAll('.filterbar .pill[data-owner]').forEach(x => x.classList.toggle('active', x.dataset.owner === filterOwner));
+    render();
+  });
+});
+
+// Close modal on backdrop click
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target.id === 'modal') closeModal();
+});
+document.getElementById('export-modal').addEventListener('click', e => {
+  if (e.target.id === 'export-modal') document.getElementById('export-modal').classList.remove('show');
+});
+
+render();
+</script>
+</body>
+</html>

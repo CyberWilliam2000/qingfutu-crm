@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.DS_Store
+.codebuddy/
+*.zip
+html.gz.b64
+*.xlsx
