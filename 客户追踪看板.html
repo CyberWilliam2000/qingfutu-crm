@@ -582,12 +582,32 @@ const DEFAULT_CUSTOMERS = [
 
 const STAGES = ['L1 线索','L2 接触中','L3 报价中','L4 谈判中','C 合作中','L8 已流失'];
 const STORAGE_KEY = 'qingfutu_crm_v7_20260723';
+const DELETED_KEY = 'qingfutu_crm_deleted_v1';
 const API_BASE = '';
 
 let customers = loadCustomers();
 let filterBiz = 'all';
 let filterOwner = 'all';
 let editing = null;
+
+// HTML 转义，防止备注/名称里的特殊字符破坏渲染
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// 删除墓碑：记录已删除的客户 ID，同步时通知后端从 Excel 删行，防止"复活"
+function getDeletedIds() {
+  try { return JSON.parse(localStorage.getItem(DELETED_KEY) || '[]'); }
+  catch (e) { return []; }
+}
+function setDeletedIds(ids) {
+  localStorage.setItem(DELETED_KEY, JSON.stringify(ids));
+}
 
 function loadCustomers() {
   const stored = localStorage.getItem(STORAGE_KEY);
@@ -659,31 +679,31 @@ function render() {
         if (c.isGoal) badges += '<span class="badge-goal" title="当月进球 ⚽">⚽</span>';
         const bizArr = c.biz || ['调研'];
         const cardClass = bizArr.length > 1 ? 'biz-multi' : 'biz-' + bizArr[0];
-        const bizTags = bizArr.map(b => `<span class="biz-tag biz-${b}">${b}</span>`).join('');
-        const referrerHtml = c.referrer ? `<div class="referrer">📥 ${c.referrer}</div>` : '';
+        const bizTags = bizArr.map(b => `<span class="biz-tag biz-${esc(b)}">${esc(b)}</span>`).join('');
+        const referrerHtml = c.referrer ? `<div class="referrer">📥 ${esc(c.referrer)}</div>` : '';
         let stageChangeHtml = '';
         if (c.stageHistory && c.stageHistory.length > 0) {
           const last = c.stageHistory[c.stageHistory.length - 1];
-          stageChangeHtml = `<div class="stage-change">🔄 ${last.from}→${last.to} ${last.date}</div>`;
+          stageChangeHtml = `<div class="stage-change">🔄 ${esc(last.from)}→${esc(last.to)} ${esc(last.date)}</div>`;
         }
         html += `
-          <div class="card ${cardClass}" onclick="openEdit('${c.id}')">
+          <div class="card ${cardClass}" data-id="${esc(c.id)}">
             <div class="edit-hint">✏️</div>
-            <div class="name">${c.name}${badges}</div>
+            <div class="name">${esc(c.name)}${badges}</div>
             <div class="tags-row">${bizTags}</div>
-            <div class="proj">${c.proj || ''}</div>
+            <div class="proj">${esc(c.proj || '')}</div>
             <div class="meta">
-              <span class="owner">${c.owner}</span>
-              ${c.next ? `<span class="next">→ ${c.next}</span>` : ''}
-              ${c.createdAt ? `<span class="created">📅 ${c.createdAt}</span>` : ''}
+              <span class="owner">${esc(c.owner)}</span>
+              ${c.next ? `<span class="next">→ ${esc(c.next)}</span>` : ''}
+              ${c.createdAt ? `<span class="created">📅 ${esc(c.createdAt)}</span>` : ''}
             </div>
             ${referrerHtml}
-            ${c.note ? `<div class="note">${c.note}</div>` : ''}
+            ${c.note ? `<div class="note">${esc(c.note)}</div>` : ''}
             ${stageChangeHtml}
           </div>`;
       });
     }
-    html += `<div class="add-card" onclick="openNew('${stage}')">+ 添加到 ${stage}</div>`;
+    html += `<div class="add-card" data-stage="${esc(stage)}">+ 添加到 ${stage}</div>`;
     col.innerHTML = html;
     kanban.appendChild(col);
   });
@@ -764,18 +784,23 @@ function saveCustomer() {
   if (editing) {
     const idx = customers.findIndex(x => x.id === editing);
     if (idx >= 0) {
-      const oldStage = customers[idx].stage;
+      const old = customers[idx];
+      const oldStage = old.stage;
       const newStage = updated.stage;
       if (oldStage !== newStage) {
-        if (!customers[idx].stageHistory) customers[idx].stageHistory = [];
-        customers[idx].stageHistory.push({
+        if (!old.stageHistory) old.stageHistory = [];
+        old.stageHistory.push({
           from: oldStage,
           to: newStage,
           date: new Date().toISOString().slice(0, 10),
         });
       }
-      updated.stageHistory = customers[idx].stageHistory;
-      updated.createdAt = customers[idx].createdAt;
+      updated.stageHistory = old.stageHistory;
+      updated.createdAt = old.createdAt;
+      // 保留表单之外的字段，避免编辑时清空
+      updated.amount = old.amount;
+      updated.currency = old.currency;
+      updated.entry = old.entry;
       customers[idx] = updated;
     }
   } else {
@@ -791,22 +816,34 @@ function saveCustomer() {
 function deleteCustomer() {
   if (!editing) return;
   if (!confirm('确定要删除这条客户记录吗?')) return;
-  customers = customers.filter(c => c.id !== editing);
+  const id = editing;
+  customers = customers.filter(c => c.id !== id);
+  // 记录墓碑，同步时让后端从 Excel 中删除对应行
+  const tombstones = getDeletedIds();
+  if (!tombstones.includes(id)) tombstones.push(id);
+  setDeletedIds(tombstones);
   saveCustomers();
   closeModal();
   render();
   autoSync();
 }
 
+// 统一的同步请求：附带删除墓碑，成功后清空墓碑
+async function postSync() {
+  const resp = await fetch(API_BASE + '/api/customers/sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ customers: customers, deletedIds: getDeletedIds() }),
+  });
+  const data = await resp.json();
+  if (data.success) setDeletedIds([]);
+  return data;
+}
+
 // 自动同步到 Excel (静默模式)
 async function autoSync() {
   try {
-    const resp = await fetch(API_BASE + '/api/customers/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customers: customers }),
-    });
-    const data = await resp.json();
+    const data = await postSync();
     if (data.success) {
       showStatus('✅ 已自动同步到 Excel', 'ok', 2000);
     } else {
@@ -859,21 +896,25 @@ async function loadFromExcel() {
     const resp = await fetch(API_BASE + '/api/customers');
     const data = await resp.json();
     if (!data.success) throw new Error(data.error);
-    
-    // Merge: Excel data overrides local, but keep local-only fields like isNew
+
+    // Merge: Excel data overrides local, but keep local-only fields
     const excelMap = {};
     data.customers.forEach(c => { excelMap[c.id] = c; });
-    
+
+    const tombstones = getDeletedIds();
     const merged = [];
     const existingIds = new Set();
-    
+
     // Update existing local customers from Excel
     customers.forEach(c => {
       if (excelMap[c.id]) {
         const ec = excelMap[c.id];
         merged.push({
           ...ec,
-          isNew: c.isNew,  // Preserve local isNew flag
+          isNew: c.isNew,            // Preserve local-only fields
+          isGoal: c.isGoal,
+          stageHistory: c.stageHistory,
+          createdAt: c.createdAt,
         });
         existingIds.add(c.id);
       } else {
@@ -881,14 +922,14 @@ async function loadFromExcel() {
         merged.push(c);
       }
     });
-    
-    // Add Excel-only customers not in local
+
+    // Add Excel-only customers not in local (跳过待删除的墓碑记录)
     data.customers.forEach(ec => {
-      if (!existingIds.has(ec.id)) {
+      if (!existingIds.has(ec.id) && !tombstones.includes(ec.id)) {
         merged.push(ec);
       }
     });
-    
+
     customers = merged;
     saveCustomers();
     render();
@@ -906,12 +947,7 @@ async function syncToExcel() {
   btn.textContent = '⏳ 同步中...';
   btn.disabled = true;
   try {
-    const resp = await fetch(API_BASE + '/api/customers/sync', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customers: customers }),
-    });
-    const data = await resp.json();
+    const data = await postSync();
     if (!data.success) throw new Error(data.error);
     showStatus('✅ ' + data.message, 'ok');
   } catch (err) {
@@ -936,6 +972,14 @@ document.querySelectorAll('.filterbar .pill[data-owner]').forEach(p => {
     document.querySelectorAll('.filterbar .pill[data-owner]').forEach(x => x.classList.toggle('active', x.dataset.owner === filterOwner));
     render();
   });
+});
+
+// 看板点击事件委托：卡片 → 编辑，添加按钮 → 新增
+document.getElementById('kanban').addEventListener('click', e => {
+  const card = e.target.closest('.card');
+  if (card && card.dataset.id) { openEdit(card.dataset.id); return; }
+  const addBtn = e.target.closest('.add-card');
+  if (addBtn && addBtn.dataset.stage) { openNew(addBtn.dataset.stage); }
 });
 
 // Close modal on backdrop click
