@@ -132,8 +132,8 @@
   }
   .edit-indicator.show { display: flex; align-items: center; gap: 6px; }
 
-  /* Kanban — 6 columns (L1-L4 + C + L8) */
-  .kanban { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+  /* Kanban — 5 columns (L1-L3 + C + L8) */
+  .kanban { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
   .col {
     background: var(--fill-1);
     border-radius: 14px;
@@ -150,11 +150,12 @@
   }
   .col-stage-1 { background: rgba(0, 0, 0, 0.06); color: var(--label-2); }
   .col-stage-2 { background: rgba(37, 99, 235, 0.1); color: #1D4ED8; }
-  .col-stage-3 { background: rgba(217, 119, 6, 0.12); color: #B45309; }
-  .col-stage-4 { background: rgba(234, 88, 12, 0.12); color: #C2410C; }
+  .col-stage-3 { background: rgba(234, 88, 12, 0.12); color: #C2410C; }
+  .col-stage-4 { background: rgba(217, 119, 6, 0.12); color: #B45309; }
   .col-stage-5 { background: rgba(5, 150, 105, 0.12); color: #047857; }
   .col-stage-8 { background: rgba(255, 56, 73, 0.1); color: #E11D48; }
-  .col-count { font-size: 10px; opacity: 0.7; margin-top: 2px; font-weight: 400; }
+  .col-desc { font-size: 10px; opacity: 0.65; margin-top: 2px; font-weight: 400; }
+  .col-count { font-size: 10px; opacity: 0.7; margin-top: 1px; font-weight: 400; }
 
   /* Cards */
   .card {
@@ -424,13 +425,13 @@
       <button class="btn btn-secondary" onclick="resetData()">↻ 重置</button>
     </div>
     <h1>客户追踪看板 · 青蓝图</h1>
-    <div class="sub">仅展示跟进中及流失客户 (L1-L4 + C + L8) · 点卡片可编辑 · 改动自动保存本地 + 可同步到 Excel</div>
+    <div class="sub">仅展示跟进中及流失客户 (L1-L3 + C + L8) · 点卡片可编辑 · 改动自动保存本地 + 可同步到 Excel</div>
     <div id="sync-status" style="display:none; margin-top:8px; padding:6px 12px; border-radius:6px; font-size:11px;"></div>
     <div class="kpis">
       <div>
         <div class="label">在跟进</div>
         <div class="val" id="kpi-total">—</div>
-        <div class="sub2">L1-L4+C+L8 合计</div>
+        <div class="sub2">L1-L3+C+L8 合计</div>
       </div>
       <div>
         <div class="label">调研</div>
@@ -538,10 +539,9 @@
     <div class="form-row">
       <label>阶段 *</label>
       <select id="edit-stage">
-        <option value="L1 线索">L1 线索</option>
-        <option value="L2 接触中">L2 接触中</option>
-        <option value="L3 报价中">L3 报价中</option>
-        <option value="L4 谈判中">L4 谈判中</option>
+        <option value="L1 线索">L1 线索（初次接触）</option>
+        <option value="L2 商务方案">L2 商务方案（已给方案·谈商务）</option>
+        <option value="L3 报价摊牌">L3 报价摊牌（最终报价）</option>
         <option value="C 合作中">C 合作中 (Collaboration)</option>
         <option value="L5 已签约">L5 已签约 (移出看板)</option>
         <option value="L8 已流失">L8 已流失</option>
@@ -605,33 +605,49 @@
 
 <script>
 const DEFAULT_CUSTOMERS = [
-  // L1-L4 阶段, 负责人统一为邹霖 (BD/关系阶段) · 签约后再分配执行负责人
+  // L1-L3 阶段, 负责人统一为邹霖 (BD/关系阶段) · 签约后再分配执行负责人
   // ---- 调研 / ID / VI ----
-  {id:'R-008', name:'Longevity', biz:['调研','ID'], proj:'智能手环 (血压) 设计+调研', stage:'L3 报价中', owner:'邹霖', next:'2026-06-30', note:'已报价, 等客户回复'},
-  {id:'R-009', name:'多美丽机器人', biz:['VI'], proj:'品牌设计', stage:'L2 接触中', owner:'邹霖', next:'2026-07-15', note:'NDA 准备中, 陈文具体执行', referrer:'陈文 (外包合作)'},
-  {id:'R-010', name:'万格智元', biz:['调研','ID'], proj:'调研全案 (含设计)', stage:'L2 接触中', owner:'邹霖', next:'2026-07-01', note:'本周接待, 调研全案有机会'},
+  {id:'R-008', name:'Longevity', biz:['调研','ID'], proj:'智能手环 (血压) 设计+调研', stage:'L2 商务方案', owner:'邹霖', next:'2026-06-30', note:'已报价, 等客户回复'},
+  {id:'R-009', name:'多美丽机器人', biz:['VI'], proj:'品牌设计', stage:'L1 线索', owner:'邹霖', next:'2026-07-15', note:'NDA 准备中, 陈文具体执行', referrer:'陈文 (外包合作)'},
+  {id:'R-010', name:'万格智元', biz:['调研','ID'], proj:'调研全案 (含设计)', stage:'L1 线索', owner:'邹霖', next:'2026-07-01', note:'本周接待, 调研全案有机会'},
   {id:'R-011', name:'鲸跃动力', biz:['调研','ID'], proj:'家庭机器人 全案', stage:'L1 线索', owner:'邹霖', next:'2026-07-15', note:'家庭机器人公司, 待见面'},
-  {id:'R-012', name:'汉德', biz:['调研','ID'], proj:'滑雪设备 全案', stage:'L2 接触中', owner:'邹霖', next:'2026-07-08', note:'滑雪设备公司, 待出报价'},
-  {id:'R-014', name:'万象智维', biz:['调研','ID'], proj:'小算力产品 全案', stage:'L3 报价中', owner:'邹霖', next:'2026-07-08', note:'王蒙对接, 全案已报价', referrer:'王蒙 (客户方对接人)'},
+  {id:'R-012', name:'汉德', biz:['调研','ID'], proj:'滑雪设备 全案', stage:'L1 线索', owner:'邹霖', next:'2026-07-08', note:'滑雪设备公司, 待出报价'},
+  {id:'R-014', name:'万象智维', biz:['调研','ID'], proj:'小算力产品 全案', stage:'L2 商务方案', owner:'邹霖', next:'2026-07-08', note:'王蒙对接, 全案已报价', referrer:'王蒙 (客户方对接人)'},
   {id:'R-015', name:'BioEcho', biz:['调研','ID'], proj:'健康穿戴 全案', stage:'L1 线索', owner:'邹霖', next:'2026-06-22', note:'田新宇 (创始人), 下周待约见'},
   {id:'R-016', name:'Ciney bot', biz:['调研','ID'], proj:'摄影机器人 全案', stage:'L1 线索', owner:'邹霖', next:'2026-07-01', note:'待见面'},
-  {id:'R-013', name:'百聆', biz:['调研','ID'], proj:'调研 + ID 设计', stage:'L4 谈判中', owner:'邹霖', next:'2026-06-30', note:'报价已发, 最终商务谈判中'},
+  {id:'R-013', name:'百聆', biz:['调研','ID'], proj:'调研 + ID 设计', stage:'L3 报价摊牌', owner:'邹霖', next:'2026-06-30', note:'报价已发, 最终商务谈判中'},
   {id:'R-017', name:'贝塔无限', biz:['调研'], proj:'消费电子 (待定全案)', stage:'L1 线索', owner:'邹霖', next:'2026-07-01', note:'刘武龙(创始人,前华为); 待约见面了解需求', referrer:'陈程卓 (13430931187)'},
 
   // ---- 众筹 ----
   // C-003 uniqmag 已签约 (L5), 移出看板 — 进入交付期
-  {id:'C-004', name:'阅星曈', biz:['众筹'], proj:'纯众筹 (USD 100w)', stage:'L2 接触中', owner:'邹霖', next:'2026-08-01', note:'拟 2027 Q1 启动'},
+  {id:'C-004', name:'阅星曈', biz:['众筹'], proj:'纯众筹 (USD 100w)', stage:'L1 线索', owner:'邹霖', next:'2026-08-01', note:'拟 2027 Q1 启动'},
   // C-006 脑利众筹 已删除 (用户决定不做)
-  {id:'C-007', name:'Uniformation', biz:['调研'], proj:'前测 ¥10w + 投放 (¥20-30w)', stage:'L2 接触中', owner:'邹霖', next:'2026-07-15', note:'3D打印; 不做全案/不做众筹发售; 前测+投放协作'},
+  {id:'C-007', name:'Uniformation', biz:['调研'], proj:'前测 ¥10w + 投放 (¥20-30w)', stage:'L1 线索', owner:'邹霖', next:'2026-07-15', note:'3D打印; 不做全案/不做众筹发售; 前测+投放协作'},
 
   // ---- 独立站 ----
-  {id:'D-001', name:'本智 / Tiiny', biz:['独立站'], proj:'月费 USD 13.5K × 5月', stage:'L4 谈判中', owner:'邹霖', next:'2026-06-30', note:'独立站组样板客户, 6月底前必签'},
-  {id:'D-003', name:'灵宇宙', biz:['独立站'], proj:'独立站运营 (月费 USD 10K + 销售提成)', stage:'L4 谈判中', owner:'邹霖', next:'2026-09-01', note:'10月起算 (调研客户延伸)'},
-  {id:'D-005', name:'uniqmag', biz:['独立站','众筹'], proj:'众筹延伸 → 独立站运营', stage:'L2 接触中', owner:'邹霖', next:'2026-06-30', note:'马总, 等后续 (uniqmag众筹延伸客户)'},
+  {id:'D-001', name:'本智 / Tiiny', biz:['独立站'], proj:'月费 USD 13.5K × 5月', stage:'L3 报价摊牌', owner:'邹霖', next:'2026-06-30', note:'独立站组样板客户, 6月底前必签'},
+  {id:'D-003', name:'灵宇宙', biz:['独立站'], proj:'独立站运营 (月费 USD 10K + 销售提成)', stage:'L3 报价摊牌', owner:'邹霖', next:'2026-09-01', note:'10月起算 (调研客户延伸)'},
+  {id:'D-005', name:'uniqmag', biz:['独立站','众筹'], proj:'众筹延伸 → 独立站运营', stage:'L1 线索', owner:'邹霖', next:'2026-06-30', note:'马总, 等后续 (uniqmag众筹延伸客户)'},
   // D-006 vastnaut (外骨骼) 已取消, 移出看板
 ];
 
-const STAGES = ['L1 线索','L2 接触中','L3 报价中','L4 谈判中','C 合作中','L8 已流失'];
+// 五阶段漏斗：L1 初次接触 → L2 已给方案谈商务 → L3 报价摊牌 → C 合作中（+ L8 已流失）
+const STAGES = ['L1 线索','L2 商务方案','L3 报价摊牌','C 合作中','L8 已流失'];
+const STAGE_DESC = {
+  'L1 线索': '初次接触',
+  'L2 商务方案': '已给方案 · 在谈商务',
+  'L3 报价摊牌': '最终报价 · 摊牌推进',
+  'C 合作中': '合作进行中',
+  'L8 已流失': '流失 · 可回流',
+};
+// 旧阶段名 → 新阶段名（本地缓存与 Excel 旧数据自动迁移）
+const STAGE_MIGRATE = {
+  'L2 接触中': 'L1 线索',
+  'L3 报价中': 'L2 商务方案',
+  'L4 谈判中': 'L3 报价摊牌',
+};
+function migrateStage(s) { return STAGE_MIGRATE[s] || s; }
+
 const STORAGE_KEY = 'qingfutu_crm_v7_20260723';
 const DELETED_KEY = 'qingfutu_crm_deleted_v1';
 const API_BASE = '';
@@ -680,11 +696,12 @@ function loadCustomers() {
   } else {
     data = JSON.parse(JSON.stringify(DEFAULT_CUSTOMERS));
   }
-  // Backward compat: convert string biz to array; 旧的 isNew 布尔标记全部作废（无日期，视为已过期）
+  // Backward compat: convert string biz to array; 旧的 isNew 布尔标记全部作废（无日期，视为已过期）; 旧阶段名迁移
   data.forEach(c => {
     if (typeof c.biz === 'string') c.biz = [c.biz];
     if (!Array.isArray(c.biz)) c.biz = ['调研'];
     delete c.isNew;
+    c.stage = migrateStage(c.stage);
   });
   return data;
 }
@@ -705,7 +722,7 @@ function resetData() {
 
 function getFiltered() {
   return customers.filter(c =>
-    STAGES.includes(c.stage) &&  // Only show L1-L4
+    STAGES.includes(c.stage) &&  // Only show L1-L3 + C + L8
     (filterBiz === 'all' || (c.biz && c.biz.includes(filterBiz))) &&
     (filterOwner === 'all' || c.owner === filterOwner)
   );
@@ -727,12 +744,14 @@ function render() {
   const kanban = document.getElementById('kanban');
   kanban.innerHTML = '';
   STAGES.forEach((stage, i) => {
-    let stageNum = i+1;
+    let stageNum = i + 1;
+    if (stage === 'C 合作中') stageNum = 5;
     if (stage === 'L8 已流失') stageNum = 8;
     const stageCustomers = filtered.filter(c => c.stage === stage);
     const col = document.createElement('div');
     col.className = 'col';
-    let html = `<div class="col-header col-stage-${stageNum}">${stage}<div class="col-count">${stageCustomers.length} 个客户</div></div>`;
+    const desc = STAGE_DESC[stage] || '';
+    let html = `<div class="col-header col-stage-${stageNum}">${stage}${desc ? `<div class="col-desc">${desc}</div>` : ''}<div class="col-count">${stageCustomers.length} 个客户</div></div>`;
     if (stageCustomers.length === 0) {
       html += '<div class="empty">暂无客户</div>';
     } else {
@@ -963,6 +982,9 @@ async function loadFromExcel() {
     const resp = await fetch(API_BASE + '/api/customers');
     const data = await resp.json();
     if (!data.success) throw new Error(data.error);
+
+    // 旧阶段名迁移（Excel 里可能还是 L2 接触中 / L3 报价中 / L4 谈判中）
+    data.customers.forEach(c => { c.stage = migrateStage(c.stage); });
 
     // Merge: Excel data overrides local, but keep local-only fields
     const excelMap = {};
