@@ -38,6 +38,7 @@ COL_MAP = {
     'note': 11,    # K: 状态/备注
     'referrer': 12,# L: 介绍人/来源
     'action': 13,  # M: 操作动作
+    'goal': 14,    # N: 当月进球 (⚽)
 }
 
 def read_excel_customers():
@@ -49,7 +50,7 @@ def read_excel_customers():
     ws = wb['客户列表']
 
     customers = []
-    for row in ws.iter_rows(min_row=HEADER_ROW, max_col=13):
+    for row in ws.iter_rows(min_row=HEADER_ROW, max_col=14):
         # row is 0-indexed tuple
         cid = row[0].value
         if not cid or str(cid).strip() in ['', 'ID', '合计']:
@@ -71,6 +72,8 @@ def read_excel_customers():
         next_date = str(row[9].value or '')
         note = str(row[10].value or '')
         referrer = str(row[11].value or '')
+        goal_raw = str(row[13].value or '').strip()
+        is_goal = goal_raw not in ('', 'None')
 
         # Parse next_date / entry: if it looks like a datetime, extract date part
         for field_name, field_val in (('next_date', next_date), ('entry', entry)):
@@ -97,7 +100,7 @@ def read_excel_customers():
             'next': next_date if next_date != 'None' else '',
             'note': note,
             'referrer': referrer,
-            'isNew': False,
+            'isGoal': is_goal,
         })
 
     wb.close()
@@ -160,6 +163,7 @@ def write_excel_customers(customers, deleted_ids=None):
                 ws.cell(row=row_idx, column=COL_MAP['next']).value = ''
             ws.cell(row=row_idx, column=COL_MAP['note']).value = c.get('note', '')
             ws.cell(row=row_idx, column=COL_MAP['referrer']).value = c.get('referrer', '')
+            ws.cell(row=row_idx, column=COL_MAP['goal']).value = '⚽' if c.get('isGoal') else ''
 
     # Add new customers that don't exist in Excel (never re-add tombstoned IDs)
     new_customers = [c for c in customers if c['id'] not in existing_ids and c['id'] not in deleted_ids]
@@ -179,7 +183,21 @@ def write_excel_customers(customers, deleted_ids=None):
             ws.cell(row=insert_row, column=COL_MAP['next']).value = c.get('next', '')
             ws.cell(row=insert_row, column=COL_MAP['note']).value = c.get('note', '')
             ws.cell(row=insert_row, column=COL_MAP['referrer']).value = c.get('referrer', '')
+            ws.cell(row=insert_row, column=COL_MAP['goal']).value = '⚽' if c.get('isGoal') else ''
             insert_row += 1
+
+    # 确保「当月进球」列表头存在：找到 A 列为 'ID' 的表头行写入
+    goal_header_row = None
+    for r in range(1, HEADER_ROW + 1):
+        if str(ws.cell(row=r, column=1).value or '').strip() == 'ID':
+            goal_header_row = r
+            break
+    if goal_header_row is None:
+        goal_header_row = HEADER_ROW
+    header_cell = ws.cell(row=goal_header_row, column=COL_MAP['goal'])
+    if not header_cell.value:
+        header_cell.value = '当月进球'
+        header_cell.font = Font(bold=True)
 
     wb.save(EXCEL_PATH)
     wb.close()

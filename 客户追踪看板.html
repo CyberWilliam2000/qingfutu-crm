@@ -132,6 +132,43 @@
   }
   .edit-indicator.show { display: flex; align-items: center; gap: 6px; }
 
+  /* Goal Zone — 当月进球专区 */
+  .goal-zone {
+    background: var(--surface);
+    border: 0.5px solid var(--sep);
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+  }
+  .goal-hero { display: flex; align-items: center; gap: 14px; }
+  .goal-icon { position: relative; font-size: 44px; line-height: 1; width: 76px; text-align: center; user-select: none; }
+  .goal-icon .ball {
+    position: absolute;
+    left: 8px;
+    top: 12px;
+    font-size: 22px;
+  }
+  .goal-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+  .goal-sub { font-size: 11px; color: var(--label-3); margin-top: 2px; }
+  .goal-count { margin-left: auto; font-size: 32px; font-weight: 700; color: #047857; letter-spacing: -0.02em; }
+  .goal-list { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  .goal-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(5, 150, 105, 0.08);
+    border: 0.5px solid rgba(5, 150, 105, 0.3);
+    font-size: 12px;
+    color: var(--label-1);
+    cursor: pointer;
+    transition: all 120ms var(--ease);
+  }
+  .goal-chip:hover { background: rgba(5, 150, 105, 0.15); transform: translateY(-1px); }
+  .goal-chip .s { color: var(--label-3); font-size: 10px; }
+  .goal-empty { font-size: 12px; color: var(--label-3); padding: 4px 0; }
+
   /* Kanban — 5 columns (L1-L3 + C + L8) */
   .kanban { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
   .col {
@@ -499,6 +536,19 @@
     </div>
   </div>
 
+  <!-- Goal Zone · 当月进球 -->
+  <div class="goal-zone" id="goal-zone">
+    <div class="goal-hero">
+      <div class="goal-icon"><span class="net">🥅</span><span class="ball">⚽</span></div>
+      <div class="goal-text">
+        <div class="goal-title">当月进球</div>
+        <div class="goal-sub">本月锁定的重点客户 · 点名字可直接编辑</div>
+      </div>
+      <div class="goal-count" id="goal-count">0</div>
+    </div>
+    <div class="goal-list" id="goal-list"></div>
+  </div>
+
   <!-- Kanban -->
   <div class="kanban" id="kanban"></div>
 
@@ -791,6 +841,13 @@ function render() {
     col.innerHTML = html;
     kanban.appendChild(col);
   });
+
+  // 当月进球专区（跟随当前筛选）
+  const goals = filtered.filter(c => c.isGoal);
+  document.getElementById('goal-count').textContent = goals.length;
+  document.getElementById('goal-list').innerHTML = goals.length === 0
+    ? '<div class="goal-empty">本月还没有进球客户 — 点卡片勾选「⚽ 当月进球」后就会出现在这里</div>'
+    : goals.map(c => `<div class="goal-chip" data-id="${esc(c.id)}">⚽ <strong>${esc(c.name)}</strong><span class="s">${esc(c.stage)}</span></div>`).join('');
 }
 
 function setBizCheckboxes(bizArray) {
@@ -1003,7 +1060,7 @@ async function loadFromExcel() {
         merged.push({
           ...ec,
           newSince: c.newSince,      // Preserve local-only fields
-          isGoal: c.isGoal,
+          isGoal: !!(ec.isGoal || c.isGoal),  // Excel 与本地任一为真即保留（取消需保存后 autoSync 写入 Excel）
           stageHistory: c.stageHistory,
           createdAt: c.createdAt,
         });
@@ -1071,6 +1128,12 @@ document.getElementById('kanban').addEventListener('click', e => {
   if (card && card.dataset.id) { openEdit(card.dataset.id); return; }
   const addBtn = e.target.closest('.add-card');
   if (addBtn && addBtn.dataset.stage) { openNew(addBtn.dataset.stage); }
+});
+
+// 进球专区点击 → 编辑
+document.getElementById('goal-list').addEventListener('click', e => {
+  const chip = e.target.closest('.goal-chip');
+  if (chip && chip.dataset.id) openEdit(chip.dataset.id);
 });
 
 // Close modal on backdrop click
